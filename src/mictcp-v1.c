@@ -4,6 +4,7 @@
 //Variables
 unsigned short no_port_dest;
 unsigned short no_port_local;
+mic_tcp_sock_addr * addresse_sock;
 
 
 
@@ -40,7 +41,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 {  
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    return -1;
+    return 0;
 }
 
 /*
@@ -49,8 +50,10 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
  */
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 {   
+    addresse_sock=&addr;
+    no_port_local=addr.port;
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    return -1;
+    return 0;
 }
 
 /*
@@ -63,17 +66,15 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     mic_tcp_pdu pdu;
     pdu.header.source_port=no_port_local;
     pdu.header.dest_port=no_port_dest;
-    pdu.header.seq_num=PE;
-    pdu.header.ack_num=PE;
+    pdu.header.seq_num=0;
+    pdu.header.ack_num=0;
     pdu.header.syn=0;
     pdu.header.ack=0;
     pdu.header.fin=0;
     pdu.payload.data=mesg;
     pdu.payload.size=mesg_size;
     //manque l'adresse
-
-
-    return IP_send(pdu,adresse);
+    return IP_send(pdu,addresse_sock->ip_addr);
 }
 
 /*
@@ -85,7 +86,9 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    return -1;
+    mic_tcp_pdu* pdu;
+    pdu->payload.size=max_mesg_size;
+    return IP_recv(pdu,*(addresse_sock->ip_addr), addr_distant,1000);
 }
 
 /*
