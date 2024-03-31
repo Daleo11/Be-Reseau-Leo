@@ -24,8 +24,6 @@ int mic_tcp_socket(start_mode sm)
    if (result!=-1){
         socket1.fd=0;
         socket1.state=IDLE;
-        socket1.local_addr=null;
-        socket1.remote_addr=null;
    }
 
    return result;
@@ -38,12 +36,12 @@ int mic_tcp_socket(start_mode sm)
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
 {
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-   addr.ip_addr=gethostbyname("localhost");
-   addr.ip_addr.addr_size=addr.ip_addr.(*addr).size();
+   addr.ip_addr.addr=gethostbyname("localhost");
+   addr.ip_addr.addr_size=sizeof(addr.ip_addr.addr);
    addr.port=9000;
    socket1.fd=socket;
-   socket1.local_addr.ip_addr=gethostbyname("localhost");
-   socket1.local_addr.ip_addr.addr_size=addr.ip_addr.addr.size();
+   socket1.local_addr.ip_addr.addr=gethostbyname("localhost");
+   socket1.local_addr.ip_addr.addr_size=sizeof(addr.ip_addr.addr);
    socket1.local_addr.port=9000;   
    return 0;
 }
@@ -108,7 +106,7 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     mic_tcp_pdu* pdu;
     pdu->payload.size=max_mesg_size;
-    return IP_recv(pdu,*(addresse_sock->ip_addr), addr_distant,1000);
+    return IP_recv(pdu,&(addresse_sock->ip_addr), &(socket1.remote_addr),1000);
 }
 
 /*
