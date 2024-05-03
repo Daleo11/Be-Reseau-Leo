@@ -28,7 +28,7 @@ int mic_tcp_socket(start_mode sm)
         return socket1.fd;// on renvoi l'indentificateur du socket
    }
 
-   return result //si on arrive ici result=-1 
+   return result; //si on arrive ici result=-1 
 }
 
 /*
