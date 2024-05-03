@@ -6,7 +6,7 @@ unsigned short no_port_dest;
 unsigned short no_port_local;
 mic_tcp_sock_addr * addresse_sock;
 mic_tcp_sock socket1;
-int PE=0;
+int *PE=0;
 
 
 
@@ -86,17 +86,36 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     mic_tcp_pdu *pdu;
     pdu=malloc(sizeof(mic_tcp_pdu));
     pdu->header.source_port=socket1.local_addr.port;
-    pdu->header.seq_num=0;//plus tard on mettra PE
+    pdu->header.seq_num=*PE;
     pdu->header.dest_port=socket1.remote_addr.port;
-    pdu->header.ack_num=0;
+    pdu->header.ack_num=*PE;
     pdu->header.syn=0;
     pdu->header.ack=0;
     pdu->header.fin=0;
     //pdu->payload.data=malloc(mesg_size);
     pdu->payload.data=mesg;
     pdu->payload.size=mesg_size;
-    //manque l'adresse
-    return IP_send(*pdu,socket1.remote_addr.ip_addr);
+    int res1=IP_send(*pdu,socket1.remote_addr.ip_addr);//tentative d'envoi numero 1
+    //passage en reception pour recuperer ACK
+    int res2=0;
+    mic_tcp_pdu pdu2;
+    if (res1==0){// ca sert a rien dessayer de receptionner un ACK si lenvoi a echouer donc on verifie
+        res2=IP_recv(&pdu2,&socket1.local_addr,&socket1.remote_addr,1000);
+    }
+    while (pdu2.header.ack_num!=*PE || res1==-1 || res2==-1){//si ACK correspond pas ou echec envoi ou timeout
+        res1=IP_send(*pdu,socket1.remote_addr.ip_addr);
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);
+        printf("perte message quelque par entre ici et là bas");
+        //pour la fiabilité partielle il suffira de mettre manuellement les variables a la valeur necessaire pour sortir de la boucle (res=0, acknum=*PE)
+    }
+
+    //fiabilite totale (perte pas acceptable) ->utilisation while ACK pas le bon
+
+    
+
+    int res=res1;
+    *PE=1-*PE;//si vaut 0 devient 1 et vise versa
+    return res;
 }
 
 /*
@@ -112,7 +131,15 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     pdu.payload.data=mesg;
     pdu.payload.size=max_mesg_size;
     //IP_recv(&pdu,&(socket1.local_addr.ip_addr), &(socket1.remote_addr.ip_addr),1000);
-    return app_buffer_get(pdu.payload);
+    int res=app_buffer_get(pdu.payload);
+    if (pdu.header.ack_num==*PE || res==0){
+        //creation pdu2+envoi ACK
+    }
+
+
+
+
+    return res;
 }
 
 /*
