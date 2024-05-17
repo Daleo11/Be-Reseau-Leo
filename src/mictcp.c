@@ -6,7 +6,7 @@ unsigned short no_port_dest;
 unsigned short no_port_local;
 mic_tcp_sock_addr * addresse_sock;
 mic_tcp_sock socket1;
-int *PE=0;
+int PE=0;
 
 
 
@@ -25,6 +25,9 @@ int mic_tcp_socket(start_mode sm)
    if (result!=-1){//si pas echec
         socket1.fd=0;//on met l'identificateur a la val 0
         socket1.state=IDLE;
+        socket1.local_addr.ip_addr.addr="0.0.0.0";
+        socket1.local_addr.ip_addr.addr=8;
+        socket1.local_addr.port=5000;
         return socket1.fd;// on renvoi l'indentificateur du socket
    }
 
@@ -83,28 +86,28 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)//addr distante
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    mic_tcp_pdu *pdu;
-    pdu=malloc(sizeof(mic_tcp_pdu));
-    pdu->header.source_port=socket1.local_addr.port;
-    pdu->header.seq_num=*PE;
-    pdu->header.dest_port=socket1.remote_addr.port;
-    pdu->header.ack_num=*PE;
-    pdu->header.syn=0;
-    pdu->header.ack=0;
-    pdu->header.fin=0;
-    //pdu->payload.data=malloc(mesg_size);
-    pdu->payload.data=mesg;
-    pdu->payload.size=mesg_size;
-    int res1=IP_send(*pdu,socket1.remote_addr.ip_addr);//tentative d'envoi numero 1
+    mic_tcp_pdu pdu;
+    pdu.header.source_port=socket1.local_addr.port;
+    pdu.header.dest_port=socket1.remote_addr.port;
+    pdu.header.seq_num=PE;
+    pdu.header.ack_num=PE;
+    pdu.header.syn=0;
+    pdu.header.ack=0;
+    pdu.header.fin=0;
+    pdu.payload.data=mesg;
+    pdu.payload.size=mesg_size;
+    int res1=IP_send(pdu,socket1.remote_addr.ip_addr);//tentative d'envoi numero 1
     //passage en reception pour recuperer ACK
     int res2=0;
     mic_tcp_pdu pdu2;
     if (res1==0){// ca sert a rien dessayer de receptionner un ACK si lenvoi a echouer donc on verifie
-        res2=IP_recv(&pdu2,&socket1.local_addr,&socket1.remote_addr,1000);
-    }
-    while (pdu2.header.ack_num!=*PE || res1==-1 || res2==-1){//si ACK correspond pas ou echec envoi ou timeout
-        res1=IP_send(*pdu,socket1.remote_addr.ip_addr);
+        printf("envoi echouer on reessaie");
         res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);
+    }
+    while (pdu2.header.ack_num!=PE || res1==-1 || res2==-1){//si ACK correspond pas ou echec envoi ou timeout
+        res1=IP_send(pdu,socket1.remote_addr.ip_addr);
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);
+        printf("%d %d %d\n",PE,res1,res2);
         printf("perte message quelque par entre ici et là bas");
         //pour la fiabilité partielle il suffira de mettre manuellement les variables a la valeur necessaire pour sortir de la boucle (res=0, acknum=*PE)
     }
@@ -114,7 +117,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     
 
     int res=res1;
-    *PE=1-*PE;//si vaut 0 devient 1 et vise versa
+    PE=1-PE;//si vaut 0 devient 1 et vise versa
     return res;
 }
 
@@ -130,14 +133,9 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     mic_tcp_pdu pdu;
     pdu.payload.data=mesg;
     pdu.payload.size=max_mesg_size;
-    //IP_recv(&pdu,&(socket1.local_addr.ip_addr), &(socket1.remote_addr.ip_addr),1000);
-    int res=app_buffer_get(pdu.payload);
-    if (pdu.header.ack_num==*PE || res==0){
-        //creation pdu2+envoi ACK
-    }
-
-
-
+    int res=app_buffer_get(pdu.payload);//la verification du PE est faite avant si y a rien cest soit quon a rien recu soit que le PE correspond pas
+    //envoi ACK
+    
 
     return res;
 }
@@ -163,8 +161,26 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
 
-
-    app_buffer_put(pdu.payload);//on recup le message qui est dans les buffers
+    //verification PE
+    if (pdu.header.seq_num==(PE)){
+        app_buffer_put(pdu.payload);//on recup le message qui est dans les buffers
+        printf("PE OK\n");
+        PE=1-PE;
+    }
+    else{printf("mauvais PE\n");}
+    mic_tcp_pdu pdu2;
+    pdu2.header.source_port=socket1.local_addr.port;
+    pdu2.header.dest_port=socket1.remote_addr.port;
+    pdu2.header.seq_num=PE;
+    pdu2.header.ack_num=1-PE;
+    pdu2.header.syn=0;
+    pdu2.header.ack=1;
+    pdu2.header.fin=0;
+    pdu2.payload.size=0;
+    printf("%s\n",remote_addr);
+    printf("envoi ACK %d\n",PE);
+    IP_send(pdu2,remote_addr);
+    printf("apres send\n");
 
 } 
 
