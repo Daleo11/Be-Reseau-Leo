@@ -7,9 +7,43 @@ unsigned short no_port_local;
 mic_tcp_sock_addr * addresse_sock;
 mic_tcp_sock socket1;
 int PE=0;
+int nb_perte_autorise=10;//pourcentage de perte autoriser
+int taille_fenettre=15;
+int fenettre[15];
+int fiabilite_totale=0;//0 si perte, 1 si aucune perte tolere
 
 
+void init_fenetre(){
+    for (int i=0;i<taille_fenettre;i++){
+        fenettre[i]=0;//0 pas de perte, 1 perte
+    }
+}
 
+int compte_perte(){
+    int res=0;
+    for (int i=0;i<taille_fenettre;i++){
+        res=res+fenettre[i];
+    }
+    return res;
+}
+
+void decalage_fenetre(){
+    for (int i=1;i<taille_fenettre;i++){
+        fenettre[i-1]=fenettre[i];
+    }
+}
+
+void ajout_fenettre(int val){
+    decalage_fenetre();
+    fenettre[taille_fenettre-1]=val;
+}
+
+void aff_fenettre(){
+    for (int i=0;i<taille_fenettre;i++){
+        printf("%d ",fenettre[i]);
+    }
+    printf("\n");
+}
 
 
 
@@ -22,7 +56,7 @@ int mic_tcp_socket(start_mode sm)
    int result = -1;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(10);//pourcentage perte
+   set_loss_rate(60);//pourcentage perte
    if (result!=-1){//si pas echec
         socket1.fd=0;//on met l'identificateur a la val 0
         socket1.state=IDLE;
@@ -77,6 +111,8 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)//addr distante
     //IP_send(pdu,addr.ip_addr);
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     socket1.remote_addr=addr;
+    printf("INIT Fenettre\n");
+    init_fenetre();
     return 0;
 }
 
@@ -97,33 +133,45 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     pdu.header.fin=0;
     pdu.payload.data=mesg;
     pdu.payload.size=mesg_size;
+    
     int res1=IP_send(pdu,socket1.remote_addr.ip_addr);//tentative d'envoi numero 1
     //passage en reception pour recuperer ACK
     int res2=0;
     int tentative=1;
     mic_tcp_pdu pdu2;
     if (res1!=0){// ca sert a rien dessayer de receptionner un ACK si lenvoi a echouer donc on verifie
-        //printf("envoi echouer on reessaie");
         //res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,NULL,50);//si video
-        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,50);//si texte
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);//si texte
     }
-    //printf("%d %d %d\n",PE,res1,res2);
-    while (pdu2.header.ack_num!=PE || res1==-1 || res2==-1){//si ACK correspond pas ou echec envoi ou timeout
+
+    int perte=pdu2.header.ack_num!=PE || res1==-1 || res2==-1;
+    
+    //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
+    //         perte   et   perte non tolerable                       perte et totale
+    while ((perte && ((compte_perte()<nb_perte_autorise)==0)) || (perte && fiabilite_totale)){//si ACK correspond pas ou echec envoi ou timeout
         res1=IP_send(pdu,socket1.remote_addr.ip_addr);
         //res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,NULL,50);//si video
-        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,50);//si texte
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);//si texte
         
         tentative++;
-        //printf("%d %d %d %d\n",PE,res1,res2,pdu2.header.ack_num);
-        //printf("perte message quelque par entre ici et là bas");
         //pour la fiabilité partielle il suffira de mettre manuellement les variables a la valeur necessaire pour sortir de la boucle (res=0, acknum=*PE)
+        
+        perte=pdu2.header.ack_num!=PE || res1==-1 || res2==-1;
+        //aff_fenettre();
+        //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
 
     }
-
-    //fiabilite totale (perte pas acceptable) ->utilisation while ACK pas le bon
-
     
+    if (perte){//si perte
+        ajout_fenettre(1);//on rajoute une perte
+    }
+    else{
+        ajout_fenettre(0);
+    }
+
     printf("nb tentative : %d\n",tentative);
+    aff_fenettre();
+    printf("nb perte dans fenettre %d\n",compte_perte());
     int res=res1;
     PE=(PE+1)%2;//si vaut 0 devient 1 et vise versa
     return res;
