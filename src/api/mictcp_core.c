@@ -171,7 +171,11 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
             local_addr->addr_size = strlen(local_addr->addr) + 1; // don't forget '\0'
         }
 
-        printf("[MICTCP-CORE] Réception d'un paquet IP de taille %d provenant de %s\n", result, remote_addr->addr);
+        if (remote_addr != NULL){
+            printf("[MICTCP-CORE] Réception d'un paquet IP de taille %d provenant de %s\n", result, remote_addr->addr);//
+        }
+
+        
 
         /* Correct the receved size */
         result -= API_HD_Size;

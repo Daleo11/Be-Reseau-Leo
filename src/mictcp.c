@@ -12,6 +12,7 @@ int PE=0;
 
 
 
+
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
@@ -21,13 +22,13 @@ int mic_tcp_socket(start_mode sm)
    int result = -1;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(0);//pourcentage perte
+   set_loss_rate(10);//pourcentage perte
    if (result!=-1){//si pas echec
         socket1.fd=0;//on met l'identificateur a la val 0
         socket1.state=IDLE;
-        socket1.local_addr.ip_addr.addr="0.0.0.0";
-        socket1.local_addr.ip_addr.addr=8;
-        socket1.local_addr.port=5000;
+        //socket1.local_addr.ip_addr.addr="0.0.0.0";
+        //socket1.local_addr.ip_addr.addr=8;
+        //socket1.local_addr.port=5000;
         return socket1.fd;// on renvoi l'indentificateur du socket
    }
 
@@ -99,25 +100,32 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     int res1=IP_send(pdu,socket1.remote_addr.ip_addr);//tentative d'envoi numero 1
     //passage en reception pour recuperer ACK
     int res2=0;
+    int tentative=1;
     mic_tcp_pdu pdu2;
-    if (res1==0){// ca sert a rien dessayer de receptionner un ACK si lenvoi a echouer donc on verifie
-        printf("envoi echouer on reessaie");
-        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);
+    if (res1!=0){// ca sert a rien dessayer de receptionner un ACK si lenvoi a echouer donc on verifie
+        //printf("envoi echouer on reessaie");
+        //res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,NULL,50);//si video
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,50);//si texte
     }
+    //printf("%d %d %d\n",PE,res1,res2);
     while (pdu2.header.ack_num!=PE || res1==-1 || res2==-1){//si ACK correspond pas ou echec envoi ou timeout
         res1=IP_send(pdu,socket1.remote_addr.ip_addr);
-        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);
-        printf("%d %d %d\n",PE,res1,res2);
-        printf("perte message quelque par entre ici et là bas");
+        //res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,NULL,50);//si video
+        res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,50);//si texte
+        
+        tentative++;
+        //printf("%d %d %d %d\n",PE,res1,res2,pdu2.header.ack_num);
+        //printf("perte message quelque par entre ici et là bas");
         //pour la fiabilité partielle il suffira de mettre manuellement les variables a la valeur necessaire pour sortir de la boucle (res=0, acknum=*PE)
+
     }
 
     //fiabilite totale (perte pas acceptable) ->utilisation while ACK pas le bon
 
     
-
+    printf("nb tentative : %d\n",tentative);
     int res=res1;
-    PE=1-PE;//si vaut 0 devient 1 et vise versa
+    PE=(PE+1)%2;//si vaut 0 devient 1 et vise versa
     return res;
 }
 
@@ -165,22 +173,24 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     if (pdu.header.seq_num==(PE)){
         app_buffer_put(pdu.payload);//on recup le message qui est dans les buffers
         printf("PE OK\n");
-        PE=1-PE;
+        PE=(PE+1)%2;
     }
-    else{printf("mauvais PE\n");}
+    else{
+        printf("mauvais PE\n");
+    }
     mic_tcp_pdu pdu2;
     pdu2.header.source_port=socket1.local_addr.port;
     pdu2.header.dest_port=socket1.remote_addr.port;
-    pdu2.header.seq_num=PE;
-    pdu2.header.ack_num=1-PE;
+    pdu2.header.seq_num=PE%2;
+    pdu2.header.ack_num=(PE+1)%2;
     pdu2.header.syn=0;
     pdu2.header.ack=1;
     pdu2.header.fin=0;
     pdu2.payload.size=0;
-    printf("%s\n",remote_addr);
-    printf("envoi ACK %d\n",PE);
+    //printf("%s\n",remote_addr);
+    //printf("envoi ACK %d\n",pdu2.header.ack_num);
     IP_send(pdu2,remote_addr);
-    printf("apres send\n");
+    //printf("apres send\n");
 
 } 
 
