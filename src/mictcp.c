@@ -131,8 +131,6 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     }
 
     int perte=pdu2.header.ack_num==PE || res1==-1 || res2==-1;
-    printf("test %d %d\n",compte_perte()<nb_perte_autorise,perte);
-    printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
     //         perte   et   perte non tolerable                       perte et totale
     while ((perte && (compte_perte()<nb_perte_autorise)==0) || (perte && fiabilite_totale)){//si ACK correspond pas ou echec envoi ou timeout
         res1=IP_send(pdu,socket1.remote_addr.ip_addr);
