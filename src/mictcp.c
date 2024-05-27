@@ -8,18 +8,20 @@ mic_tcp_sock_addr * addresse_sock;
 mic_tcp_sock socket1;
 int PE=0;
 int nb_perte_autorise=2;//pourcentage de perte autoriser
-int taille_fenettre=10;
-int fenettre[15];
+int taille_fenettre=10;//si taille_fenettre > taille reelle de la fenettre bug sinon ce nest pas grave simplement une partie de la fenettre sera inutiliser si la variable est inferieur a la talle reelle
+int fenettre[10];//idealement doit etre = a taille_fenettre (si > pas grave si < bug)
 int fiabilite_totale=0;//0 si perte, 1 si aucune perte tolere
+//le ratio de perte autoriser est nb_perte_autorise/taille_fenettre (actuellement 20%)
 
 
+//fction pr manipuler la fenettre glissante
 void init_fenetre(){
     for (int i=0;i<taille_fenettre;i++){
         fenettre[i]=0;//0 pas de perte, 1 perte
     }
 }
 
-int compte_perte(){
+int compte_perte(){//renvoi nb perte enregistrées dans la fenettre
     int res=0;
     for (int i=0;i<taille_fenettre;i++){
         res=res+fenettre[i];
@@ -27,18 +29,18 @@ int compte_perte(){
     return res;
 }
 
-void decalage_fenetre(){
+void decalage_fenetre(){//fait "glisser" la fenettre
     for (int i=1;i<taille_fenettre;i++){
         fenettre[i-1]=fenettre[i];
     }
 }
 
-void ajout_fenettre(int val){
+void ajout_fenettre(int val){//ajoute l'element a la fin de la fenettre
     decalage_fenetre();
     fenettre[taille_fenettre-1]=val;
 }
 
-void aff_fenettre(){
+void aff_fenettre(){//affiche les valeurs contenues dans la fenettre
     for (int i=0;i<taille_fenettre;i++){
         printf("%d ",fenettre[i]);
     }
@@ -60,9 +62,6 @@ int mic_tcp_socket(start_mode sm)
    if (result!=-1){//si pas echec
         socket1.fd=0;//on met l'identificateur a la val 0
         socket1.state=IDLE;
-        //socket1.local_addr.ip_addr.addr="0.0.0.0";
-        //socket1.local_addr.ip_addr.addr=8;
-        //socket1.local_addr.port=5000;
         return socket1.fd;// on renvoi l'indentificateur du socket
    }
 
@@ -76,11 +75,6 @@ int mic_tcp_socket(start_mode sm)
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)//addr locale
 {
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-   //socket1.fd=socket;
-   //socket1.local_addr.ip_addr.addr=gethostbyname("localhost");
-   //memcpy((char*)&socket1.local_addr.ip_addr.addr,(char*)gethostbyname("localhost"),sizeof(char));
-   //socket1.local_addr.ip_addr.addr_size=sizeof(addr.ip_addr.addr);
-   //socket1.local_addr.port=9000;
    memcpy((char*)&socket1.local_addr,(char*)&addr,sizeof(mic_tcp_sock_addr));
    return 0;
 }
@@ -101,14 +95,6 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
  */
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)//addr distante
 {   
-    //addresse_sock=&addr;
-    //no_port_local=addr.port;
-
-    //mic_tcp_pdu pdu;
-    //pdu.header.source_port=no_port_local;
-    //pdu.header.dest_port=no_port_dest;
-
-    //IP_send(pdu,addr.ip_addr);
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     socket1.remote_addr=addr;
     printf("INIT Fenettre\n");
@@ -156,7 +142,6 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         tentative++;
         
         perte=pdu2.header.ack_num==PE || res1==-1 || res2==-1;
-        //aff_fenettre();
         //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));//differentes infos utiliser pour le debugage
 
     }
@@ -165,14 +150,13 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         ajout_fenettre(1);//on rajoute une perte
     }
     else{
-        printf("pas de perte");
         ajout_fenettre(0);//on rajoute un succes
         PE=(PE+1)%2;//si vaut 0 devient 1 et vise versa
     }
 
-    printf("nb tentative : %d\n",tentative);
-    aff_fenettre();
-    printf("nb perte dans fenettre %d\n",compte_perte());
+    //printf("nb tentative : %d\n",tentative);//nombre de tentative pour un envoi (si=1 alors ca a marché du premier coup)
+    //aff_fenettre();//permet de voir l'etat de la fenettre
+    //printf("nb perte dans fenettre %d\n",compte_perte());//renvoi le nombre de perte qui sont presente sur la fenettre actuelle
     int res=res1;
     
     return res;
@@ -235,10 +219,8 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     pdu2.header.ack=1;
     pdu2.header.fin=0;
     pdu2.payload.size=0;
-    //printf("%s\n",remote_addr);
-    printf("envoi ACK %d %d\n",pdu2.header.ack_num,pdu2.header.seq_num);
+    //printf("envoi ACK %d %d\n",pdu2.header.ack_num,pdu2.header.seq_num);//info pr debuggage
     IP_send(pdu2,remote_addr);
-    //printf("apres send\n");
 
 } 
 
