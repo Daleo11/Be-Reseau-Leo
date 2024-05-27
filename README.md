@@ -7,6 +7,8 @@ les versions faites vont jusqu'à la version MICTCP-v3 donc la fiabilité partie
 La variable fiabilite_totale presente dans la version 3(fiabilité partielle) permet de passer de la version 2 à la version 3.
 Si elle vaut [1] alors on est sur la version 2 si elle vaut [0] alors on est sur la version 3
 
+L'envois de message format texte fonctionne pour la video elle fonctionne parfois mais pas constament.
+
 ## Tags
 
 Le fichier issue de la fiabilité totale n'est pas propre car cela à été fait à la toute fin des differentes versions
@@ -50,4 +52,20 @@ Si il y en a une alors on est pas rentré dans la boucle (car c'est l'une des co
 il ne faut donc pas incrementer le PE.
 Si il n'y a pas de perte alors on incrémente le PE.
 
+## Commandes de compilation
 
+Pour compiler : make
+Pour lancer le code :
+texte :
+
+        ./tsock_texte -p port
+
+        ./tsock_texte -s localhost port
+
+video :
+
+./tsock_video -p -t mictcp
+
+./tsock_video -s -t mictcp
+
+Attention pour utiliser la vidéo 2 lignes sont à changer dans la partie send de mictcp l129 et l137 doivent etre décommentées et l130 et l138 doivent être commentées et vise versa
