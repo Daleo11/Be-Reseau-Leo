@@ -7,8 +7,8 @@ unsigned short no_port_local;
 mic_tcp_sock_addr * addresse_sock;
 mic_tcp_sock socket1;
 int PE=0;
-int nb_perte_autorise=10;//pourcentage de perte autoriser
-int taille_fenettre=15;
+int nb_perte_autorise=2;//pourcentage de perte autoriser
+int taille_fenettre=10;
 int fenettre[15];
 int fiabilite_totale=0;//0 si perte, 1 si aucune perte tolere
 
@@ -56,7 +56,7 @@ int mic_tcp_socket(start_mode sm)
    int result = -1;
    printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
    result = initialize_components(sm); /* Appel obligatoire */
-   set_loss_rate(60);//pourcentage perte
+   set_loss_rate(50);//pourcentage perte
    if (result!=-1){//si pas echec
         socket1.fd=0;//on met l'identificateur a la val 0
         socket1.state=IDLE;
@@ -127,7 +127,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     pdu.header.source_port=socket1.local_addr.port;
     pdu.header.dest_port=socket1.remote_addr.port;
     pdu.header.seq_num=PE;
-    pdu.header.ack_num=PE;
+    pdu.header.ack_num=(PE+1)%2;
     pdu.header.syn=0;
     pdu.header.ack=0;
     pdu.header.fin=0;
@@ -144,21 +144,20 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);//si texte
     }
 
-    int perte=pdu2.header.ack_num!=PE || res1==-1 || res2==-1;
-    
-    //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
+    int perte=pdu2.header.ack_num==PE || res1==-1 || res2==-1;
+    printf("test %d %d\n",compte_perte()<nb_perte_autorise,perte);
+    printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
     //         perte   et   perte non tolerable                       perte et totale
-    while ((perte && ((compte_perte()<nb_perte_autorise)==0)) || (perte && fiabilite_totale)){//si ACK correspond pas ou echec envoi ou timeout
+    while ((perte && (compte_perte()<nb_perte_autorise)==0) || (perte && fiabilite_totale)){//si ACK correspond pas ou echec envoi ou timeout
         res1=IP_send(pdu,socket1.remote_addr.ip_addr);
         //res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,NULL,50);//si video
         res2=IP_recv(&pdu2,&socket1.local_addr.ip_addr,&socket1.remote_addr.ip_addr,1000);//si texte
         
         tentative++;
-        //pour la fiabilité partielle il suffira de mettre manuellement les variables a la valeur necessaire pour sortir de la boucle (res=0, acknum=*PE)
         
-        perte=pdu2.header.ack_num!=PE || res1==-1 || res2==-1;
+        perte=pdu2.header.ack_num==PE || res1==-1 || res2==-1;
         //aff_fenettre();
-        //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));
+        //printf("%d %d %d %d %d\n",pdu2.header.ack_num,PE,res1,res2,(compte_perte()<nb_perte_autorise));//differentes infos utiliser pour le debugage
 
     }
     
@@ -166,14 +165,16 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         ajout_fenettre(1);//on rajoute une perte
     }
     else{
-        ajout_fenettre(0);
+        printf("pas de perte");
+        ajout_fenettre(0);//on rajoute un succes
+        PE=(PE+1)%2;//si vaut 0 devient 1 et vise versa
     }
 
     printf("nb tentative : %d\n",tentative);
     aff_fenettre();
     printf("nb perte dans fenettre %d\n",compte_perte());
     int res=res1;
-    PE=(PE+1)%2;//si vaut 0 devient 1 et vise versa
+    
     return res;
 }
 
@@ -190,7 +191,6 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     pdu.payload.data=mesg;
     pdu.payload.size=max_mesg_size;
     int res=app_buffer_get(pdu.payload);//la verification du PE est faite avant si y a rien cest soit quon a rien recu soit que le PE correspond pas
-    //envoi ACK
     
 
     return res;
@@ -224,19 +224,19 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
         PE=(PE+1)%2;
     }
     else{
-        printf("mauvais PE\n");
+        printf("mauvais PE\n");//se produit qd il y a une perte de l'ack
     }
     mic_tcp_pdu pdu2;
     pdu2.header.source_port=socket1.local_addr.port;
     pdu2.header.dest_port=socket1.remote_addr.port;
-    pdu2.header.seq_num=PE%2;
-    pdu2.header.ack_num=(PE+1)%2;
+    pdu2.header.seq_num=(PE+1)%2;
+    pdu2.header.ack_num=PE;
     pdu2.header.syn=0;
     pdu2.header.ack=1;
     pdu2.header.fin=0;
     pdu2.payload.size=0;
     //printf("%s\n",remote_addr);
-    //printf("envoi ACK %d\n",pdu2.header.ack_num);
+    printf("envoi ACK %d %d\n",pdu2.header.ack_num,pdu2.header.seq_num);
     IP_send(pdu2,remote_addr);
     //printf("apres send\n");
 
